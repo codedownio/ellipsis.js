@@ -12,7 +12,7 @@
     break_word: true
   };
 
-  var _idCounter = 0;
+  var _idCounter = 1;
 
   var RAF_SUPPORTED = !!window.requestAnimationFrame;
 
@@ -25,6 +25,10 @@
     element.setAttribute('data-ellipsis-id', id);
   };
 
+  var clearIdAttribute = function(element){
+    element.removeAttribute('data-ellipsis-id');
+  }
+
   var getIdAttribute = function(element){
     return element.getAttribute('data-ellipsis-id');
   };
@@ -35,6 +39,14 @@
     cache[id] = cache[id] || {};
     cache[id].element = element;
     cache[id].innerHTML = element.innerHTML;
+  };
+
+  var removeCache = function(cache, element){
+    var id = getIdAttribute(element);
+    if (!id) return;
+
+    clearIdAttribute(element, id);
+    cache[id] = null;
   };
 
   var retrieveCache = function(cache, element){
@@ -68,7 +80,7 @@
     conf: {},
     prop: {},
     lines: {},
-    temp: null,
+    cache: null,
     listener: null,
     create: function(opts){
       this.conf = opts;
@@ -81,9 +93,9 @@
         }
       };
 
-      if(this.conf.responsive){
-        this.temp = {};
+      this.cache = {};
 
+      if(this.conf.responsive){
         var debounceTime = this.conf.debounce;
         var listener;
 
@@ -97,7 +109,7 @@
 
               window.requestAnimationFrame(function() {
                 self._isScheduled = false;
-                self.add(getCachedElements(self.temp));
+                self.add(getCachedElements(self.cache));
               });
             }
           }
@@ -112,7 +124,7 @@
           listener = function(event) {
             clearTimeout(debounce);
             debounce = setTimeout(function(){
-              this.add(getCachedElements(this.temp));
+              this.add(getCachedElements(this.cache));
             }.bind(this), debounceTime);
           };
         }
@@ -157,16 +169,18 @@
       }
     },
     addElement: function(element){
-      if(this.conf.responsive){
-        var cached = retrieveCache(this.temp, element);
+      try {
+        var cached = retrieveCache(this.cache, element);
         if(!cached){
-          storeCache(this.temp, element);
+          storeCache(this.cache, element);
         } else {
           // insert cached element for Resizing
           if(element.innerHTML !== cached.innerHTML){
             element.innerHTML = cached.innerHTML;
           }
         }
+      } catch (e) {
+        console.log("ellipsis.js: addElement failed", e);
       }
 
       this.createProp(element);
@@ -178,6 +192,13 @@
           element.childNodes[0].nodeType === 3){
           this.simpleText(element);
         }
+      }
+    },
+    removeElement: function(element){
+      var cached = retrieveCache(this.cache, element);
+      if (cached) {
+        element.innerHTML = cached.innerHTML;
+        removeCache(this.cache, element);
       }
     },
     breakWord: function(str, str2, fix){
